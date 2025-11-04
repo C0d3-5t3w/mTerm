@@ -8,6 +8,7 @@
 typedef struct Window Window;
 typedef struct Renderer Renderer;
 typedef struct Terminal Terminal;
+typedef struct Shell Shell;
 
 // Window creation and management
 Window* window_create(const char* title, int width, int height);
@@ -30,6 +31,12 @@ void window_set_renderer(Window* window, Renderer* renderer);
 
 // Terminal integration  
 void window_set_terminal(Window* window, Terminal* terminal);
+
+// Shell integration
+void window_set_shell(Window* window, Shell* shell);
+
+// Mark window as fully initialized (prevents premature resizing)
+void window_mark_initialized(Window* window);
 
 // Display update
 void window_refresh(Window* window);

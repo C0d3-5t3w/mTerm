@@ -6,6 +6,7 @@
 #import "render.h"
 #import "terminal.h"
 #import "input.h"
+#import "shell.h"
 
 // Forward declarations
 @class TerminalWindowDelegate;
@@ -18,7 +19,9 @@ typedef struct {
     CATextLayer *text_layer;
     TerminalTextView *text_view;
     Terminal *terminal;
+    Shell *shell;
     int should_close;
+    int initialized;
     InputCallback input_callback;
     void *input_context;
 } WindowData;
@@ -100,24 +103,37 @@ typedef struct {
     
     NSRect bounds = self.bounds;
     
-    // Get terminal dimensions
+    // Calculate character dimensions
+    NSString *testChar = @"M";
+    NSSize charSize = [testChar sizeWithAttributes:attrs];
+    CGFloat char_width = charSize.width;
+    CGFloat line_height = charSize.height;
+    
+    // Offsets for drawing
+    CGFloat x_offset = 6.0;
+    CGFloat y_offset_top = 6.0;
+    
+    // Get current terminal dimensions
+    int term_width = terminal_get_width(terminal);
+    int term_height = terminal_get_height(terminal);
+    
+    // Get terminal cursor position
     int cursor_x = terminal_get_cursor_x(terminal);
     int cursor_y = terminal_get_cursor_y(terminal);
     
     // Draw text in a grid pattern
-    CGFloat x_offset = 6.0;
-    CGFloat y_offset = bounds.size.height - 16.0;  // Start from top
-    CGFloat char_width = 7.2;  // Approximate monospace char width for Menlo 12pt
-    CGFloat line_height = 14.0;
+    CGFloat y_offset = bounds.size.height - y_offset_top - line_height;  // Start from top
     
     // Draw each row of the terminal buffer
     const char *buffer = text;
-    for (int row = 0; row < 50; row++) {
-        // Extract line from buffer (120 chars per row)
-        char line_buffer[121];
-        int start_pos = row * 120;
-        strncpy(line_buffer, buffer + start_pos, 120);
-        line_buffer[120] = '\0';
+    for (int row = 0; row < term_height; row++) {
+        // Extract line from buffer (term_width chars per row)
+        char *line_buffer = (char *)malloc(term_width + 1);
+        if (!line_buffer) continue;
+        
+        int start_pos = row * term_width;
+        strncpy(line_buffer, buffer + start_pos, term_width);
+        line_buffer[term_width] = '\0';
         
         // Create NSString and draw
         NSString *line = [NSString stringWithUTF8String:line_buffer];
@@ -126,8 +142,10 @@ typedef struct {
             [line drawAtPoint:CGPointMake(x_offset, y_offset) withAttributes:attrs];
         }
         
+        free(line_buffer);
+        
         // Draw cursor if on this row
-        if (row == cursor_y && cursor_x < 120) {
+        if (row == cursor_y && cursor_x < term_width) {
             CGRect cursor_rect = CGRectMake(
                 x_offset + (cursor_x * char_width),
                 y_offset,
@@ -176,6 +194,50 @@ typedef struct {
 - (void)windowWillClose:(NSNotification *)notification {
     if (self.window_data) {
         self.window_data->should_close = 1;
+    }
+}
+
+- (void)windowDidResize:(NSNotification *)notification {
+    // Don't resize until everything is initialized
+    if (!self.window_data || !self.window_data->initialized) return;
+    
+    if (self.window_data->text_view && self.window_data->terminal && self.window_data->shell) {
+        // Calculate new terminal dimensions
+        TerminalTextView *textView = self.window_data->text_view;
+        NSRect bounds = textView.bounds;
+        
+        // Use same font metrics as drawRect
+        NSFont *font = [NSFont fontWithName:@"Menlo" size:12.0];
+        if (!font) font = [NSFont systemFontOfSize:12.0];
+        
+        NSDictionary *attrs = @{NSFontAttributeName: font};
+        NSString *testChar = @"M";
+        NSSize charSize = [testChar sizeWithAttributes:attrs];
+        CGFloat char_width = charSize.width;
+        CGFloat line_height = charSize.height;
+        
+        CGFloat x_offset = 6.0;
+        CGFloat y_offset_top = 6.0;
+        int new_width = (int)((bounds.size.width - x_offset * 2) / char_width);
+        int new_height = (int)((bounds.size.height - y_offset_top * 2) / line_height);
+        
+        // Ensure minimum size
+        if (new_width < 20) new_width = 20;
+        if (new_height < 5) new_height = 5;
+        
+        // Get current dimensions
+        int current_width = terminal_get_width(self.window_data->terminal);
+        int current_height = terminal_get_height(self.window_data->terminal);
+        
+        // Only resize if dimensions changed significantly (avoid tiny fluctuations)
+        if (abs(current_width - new_width) > 1 || abs(current_height - new_height) > 1) {
+            NSLog(@"Resizing terminal from %dx%d to %dx%d", current_width, current_height, new_width, new_height);
+            terminal_resize(self.window_data->terminal, new_width, new_height);
+            shell_resize_pty(self.window_data->shell, new_width, new_height);
+        }
+        
+        // Force text view to recalculate and redraw with new dimensions
+        [self.window_data->text_view setNeedsDisplay:YES];
     }
 }
 @end
@@ -417,6 +479,20 @@ void window_set_terminal(Window* window, Terminal* terminal) {
         [window_data->metal_view.layer addSublayer:text_layer];
         window_data->text_layer = text_layer;
     }
+}
+
+void window_set_shell(Window* window, Shell* shell) {
+    if (!window) return;
+    
+    WindowData *window_data = (WindowData *)window;
+    window_data->shell = shell;
+}
+
+void window_mark_initialized(Window* window) {
+    if (!window) return;
+    
+    WindowData *window_data = (WindowData *)window;
+    window_data->initialized = 1;
 }
 
 void window_refresh(Window* window) {

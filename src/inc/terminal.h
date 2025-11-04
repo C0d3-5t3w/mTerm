@@ -15,6 +15,13 @@ const char* terminal_get_text(Terminal* terminal);
 int terminal_get_cursor_x(Terminal* terminal);
 int terminal_get_cursor_y(Terminal* terminal);
 
+// Get terminal dimensions
+int terminal_get_width(Terminal* terminal);
+int terminal_get_height(Terminal* terminal);
+
+// Resize terminal
+void terminal_resize(Terminal* terminal, int width, int height);
+
 // Clear terminal
 void terminal_clear(Terminal* terminal);
 

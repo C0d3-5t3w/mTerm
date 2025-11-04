@@ -202,8 +202,22 @@ int main() {
         // Set renderer on the window so MTKViewDelegate can use it
         window_set_renderer(g_window, g_renderer);
         
-        // Create terminal buffer
-        g_terminal = terminal_create(120, 50);
+        // Calculate initial terminal dimensions based on window size and character metrics
+        // Assuming Menlo 12pt: char_width ~7.2, line_height ~14
+        CGFloat char_width = 7.2;
+        CGFloat line_height = 14.0;
+        CGFloat x_padding = 12.0;
+        CGFloat y_padding = 12.0;
+        
+        int term_cols = (int)((WINDOW_WIDTH - x_padding) / char_width);
+        int term_rows = (int)((WINDOW_HEIGHT - y_padding) / line_height);
+        
+        // Ensure reasonable minimums
+        if (term_cols < 80) term_cols = 80;
+        if (term_rows < 24) term_rows = 24;
+        
+        // Create terminal buffer with calculated dimensions
+        g_terminal = terminal_create(term_cols, term_rows);
         if (!g_terminal) {
             fprintf(stderr, "Failed to create terminal\n");
             renderer_destroy(g_renderer);
@@ -231,7 +245,10 @@ int main() {
             return 1;
         }
         
-        // Initialize PTY
+        // Set shell on window so it can be used for PTY resizing
+        window_set_shell(g_window, g_shell);
+        
+        // Initialize PTY with the calculated terminal dimensions
         if (shell_init_pty(g_shell) < 0) {
             fprintf(stderr, "Failed to initialize shell PTY\n");
             shell_destroy(g_shell);
@@ -239,6 +256,9 @@ int main() {
             window_destroy(g_window);
             return 1;
         }
+        
+        // Set initial PTY window size to match terminal
+        shell_resize_pty(g_shell, term_cols, term_rows);
         
         // Create input handler
         g_input = input_create();
@@ -249,6 +269,9 @@ int main() {
             window_destroy(g_window);
             return 1;
         }
+        
+        // Mark window as initialized (allows resizing from now on)
+        window_mark_initialized(g_window);
         
         // Show window
         window_show(g_window);

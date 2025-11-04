@@ -17,4 +17,7 @@ int shell_init_pty(Shell* shell);
 int shell_read_output(Shell* shell, char* buffer, int buffer_size);
 int shell_write_input(Shell* shell, const char* input, int length);
 
+// PTY resize
+void shell_resize_pty(Shell* shell, int cols, int rows);
+
 #endif // SHELL_H

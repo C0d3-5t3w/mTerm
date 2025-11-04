@@ -4,16 +4,14 @@
 #include <ctype.h>
 #import "terminal.h"
 
-#define MAX_ROWS 50
-#define MAX_COLS 120
-
 typedef struct {
-    char buffer[MAX_ROWS * MAX_COLS];
+    char *buffer;
     int width;
     int height;
     int cursor_x;
     int cursor_y;
     int scroll_pos;
+    int buffer_size;
 } TerminalData;
 
 Terminal* terminal_create(int width, int height) {
@@ -21,17 +19,29 @@ Terminal* terminal_create(int width, int height) {
     if (!term) return NULL;
     
     memset(term, 0, sizeof(TerminalData));
-    term->width = (width > MAX_COLS) ? MAX_COLS : width;
-    term->height = (height > MAX_ROWS) ? MAX_ROWS : height;
+    term->width = width;
+    term->height = height;
+    term->buffer_size = width * height;
+    
+    // Allocate dynamic buffer
+    term->buffer = (char *)malloc(term->buffer_size);
+    if (!term->buffer) {
+        free(term);
+        return NULL;
+    }
     
     // Fill buffer with spaces
-    memset(term->buffer, ' ', sizeof(term->buffer));
+    memset(term->buffer, ' ', term->buffer_size);
     
     return (Terminal *)term;
 }
 
 void terminal_destroy(Terminal* terminal) {
     if (!terminal) return;
+    TerminalData *term = (TerminalData *)terminal;
+    if (term->buffer) {
+        free(term->buffer);
+    }
     free(terminal);
 }
 
@@ -130,7 +140,7 @@ void terminal_write(Terminal* terminal, const char* data, int length) {
                             break;
                         case 'J':  // Clear display
                             if (param == 2) {
-                                memset(term->buffer, ' ', sizeof(term->buffer));
+                                memset(term->buffer, ' ', term->buffer_size);
                                 term->cursor_x = 0;
                                 term->cursor_y = 0;
                             }
@@ -198,7 +208,56 @@ int terminal_get_cursor_y(Terminal* terminal) {
 void terminal_clear(Terminal* terminal) {
     if (!terminal) return;
     TerminalData *term = (TerminalData *)terminal;
-    memset(term->buffer, ' ', sizeof(term->buffer));
+    memset(term->buffer, ' ', term->buffer_size);
     term->cursor_x = 0;
     term->cursor_y = 0;
+}
+
+int terminal_get_width(Terminal* terminal) {
+    if (!terminal) return 0;
+    TerminalData *term = (TerminalData *)terminal;
+    return term->width;
+}
+
+int terminal_get_height(Terminal* terminal) {
+    if (!terminal) return 0;
+    TerminalData *term = (TerminalData *)terminal;
+    return term->height;
+}
+
+void terminal_resize(Terminal* terminal, int width, int height) {
+    if (!terminal || width <= 0 || height <= 0) return;
+    
+    TerminalData *term = (TerminalData *)terminal;
+    
+    // Calculate new buffer size
+    int new_buffer_size = width * height;
+    
+    // Allocate new buffer
+    char *new_buffer = (char *)malloc(new_buffer_size);
+    if (!new_buffer) return;
+    
+    // Fill new buffer with spaces
+    memset(new_buffer, ' ', new_buffer_size);
+    
+    // Copy old content to new buffer (as much as fits)
+    int copy_rows = (term->height < height) ? term->height : height;
+    int copy_cols = (term->width < width) ? term->width : width;
+    
+    for (int row = 0; row < copy_rows; row++) {
+        memcpy(new_buffer + row * width,
+               term->buffer + row * term->width,
+               copy_cols);
+    }
+    
+    // Free old buffer and update
+    free(term->buffer);
+    term->buffer = new_buffer;
+    term->width = width;
+    term->height = height;
+    term->buffer_size = new_buffer_size;
+    
+    // Adjust cursor position if needed
+    if (term->cursor_x >= width) term->cursor_x = width - 1;
+    if (term->cursor_y >= height) term->cursor_y = height - 1;
 }

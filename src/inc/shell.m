@@ -223,3 +223,19 @@ int shell_is_running(Shell* shell) {
     
     return 1;
 }
+
+void shell_resize_pty(Shell* shell, int cols, int rows) {
+    if (!shell || cols <= 0 || rows <= 0) return;
+    
+    ShellData *shell_data = (ShellData *)shell;
+    
+    if (shell_data->master_fd < 0) return;
+    
+    struct winsize ws;
+    ws.ws_col = cols;
+    ws.ws_row = rows;
+    ws.ws_xpixel = 0;
+    ws.ws_ypixel = 0;
+    
+    ioctl(shell_data->master_fd, TIOCSWINSZ, &ws);
+}
