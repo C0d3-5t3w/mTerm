@@ -14,9 +14,32 @@ pub fn build(b: *std.Build) void {
         .root_module = root_module,
     });
 
+    // Add all Objective-C source files
+    const cflags = &[_][]const u8{};
+
     exe.addCSourceFile(.{
         .file = b.path("src/main.m"),
-        .flags = &[_][]const u8{},
+        .flags = cflags,
+    });
+
+    exe.addCSourceFile(.{
+        .file = b.path("src/inc/window.m"),
+        .flags = cflags,
+    });
+
+    exe.addCSourceFile(.{
+        .file = b.path("src/inc/render.m"),
+        .flags = cflags,
+    });
+
+    exe.addCSourceFile(.{
+        .file = b.path("src/inc/shell.m"),
+        .flags = cflags,
+    });
+
+    exe.addCSourceFile(.{
+        .file = b.path("src/inc/input.m"),
+        .flags = cflags,
     });
 
     exe.linkLibC();
@@ -27,6 +50,7 @@ pub fn build(b: *std.Build) void {
     exe.linkFramework("QuartzCore");
     exe.linkFramework("CoreGraphics");
     exe.linkFramework("Foundation");
+    exe.linkFramework("AppKit");
 
     b.installArtifact(exe);
 
