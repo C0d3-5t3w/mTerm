@@ -29,17 +29,93 @@ static Terminal *g_terminal = NULL;
 
 // Input callback for keyboard events
 void on_key_input(void* context, int key, int action) {
-    if (g_input) {
-        input_handle_key(g_input, key, action);
-        
-        // If Return key pressed and we have input, send it to the shell
-        if (key == KEY_RETURN && action == ACTION_PRESSED && g_shell) {
-            const char *text = input_get_text_input(g_input);
-            if (text) {
-                shell_write_input(g_shell, text, strlen(text));
-                input_clear_buffer(g_input);
+    if (!g_input || !g_shell) return;
+    
+    // Only process key presses
+    if (action != ACTION_PRESSED) return;
+    
+    input_handle_key(g_input, key, action);
+    
+    char input_char[10] = {0};
+    int len = 0;
+    
+    // Convert key codes to characters/sequences and send immediately to shell
+    switch (key) {
+        case KEY_RETURN:
+            input_char[0] = '\r';  // CR for terminal
+            len = 1;
+            break;
+        case KEY_BACKSPACE:
+            input_char[0] = '\177';  // DEL character
+            len = 1;
+            break;
+        case KEY_TAB:
+            input_char[0] = '\t';
+            len = 1;
+            break;
+        case KEY_SPACE:
+            input_char[0] = ' ';
+            len = 1;
+            break;
+        case KEY_ESC:
+            input_char[0] = '\033';
+            len = 1;
+            break;
+        case KEY_UP:
+            input_char[0] = '\033';
+            input_char[1] = '[';
+            input_char[2] = 'A';
+            len = 3;
+            break;
+        case KEY_DOWN:
+            input_char[0] = '\033';
+            input_char[1] = '[';
+            input_char[2] = 'B';
+            len = 3;
+            break;
+        case KEY_LEFT:
+            input_char[0] = '\033';
+            input_char[1] = '[';
+            input_char[2] = 'D';
+            len = 3;
+            break;
+        case KEY_RIGHT:
+            input_char[0] = '\033';
+            input_char[1] = '[';
+            input_char[2] = 'C';
+            len = 3;
+            break;
+        case KEY_DELETE:
+            input_char[0] = '\033';
+            input_char[1] = '[';
+            input_char[2] = '3';
+            input_char[3] = '~';
+            len = 4;
+            break;
+        default:
+            // For regular character keys (a-z, 0-9, etc.), use macOS key code mapping
+            // Key codes 0-50 are regular keys on macOS keyboard
+            if (key >= 0) {
+                // Map common key codes to characters
+                static const char key_map[50] = {
+                    'a', 's', 'd', 'f', 'h', 'g', 'z', 'x', 'c', 'v',  // 0-9
+                    0, 'b', 'q', 'w', 'e', 'r', 'y', 't', '1', '2',    // 10-19
+                    '3', '4', '6', '5', '=', '9', '7', '-', '8', '0',  // 20-29
+                    ']', 'o', 'u', '[', 'i', 'p', 0, 'l', 'j', '\'',   // 30-39
+                    'k', ';', '\\', ',', '/', 'n', 'm', '.', 0, 0      // 40-49
+                };
+                
+                if (key < 50 && key_map[key] != 0) {
+                    input_char[0] = key_map[key];
+                    len = 1;
+                }
             }
-        }
+            break;
+    }
+    
+    // Send to shell if we have a character
+    if (len > 0) {
+        shell_write_input(g_shell, input_char, len);
     }
 }
 
@@ -74,7 +150,10 @@ void on_key_input(void* context, int key, int action) {
             }
         }
         
-        // MTKView will handle rendering through its delegate
+        // Trigger window redraw on every update cycle
+        if (g_window) {
+            window_refresh(g_window);
+        }
     }
 }
 
@@ -139,6 +218,9 @@ int main() {
         
         // Set terminal on renderer so it can display it
         renderer_set_terminal(g_renderer, g_terminal);
+        
+        // Set terminal on window so the text view can display it
+        window_set_terminal(g_window, g_terminal);
         
         // Create shell
         g_shell = shell_create();

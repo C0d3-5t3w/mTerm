@@ -5,15 +5,18 @@
 #import "window.h"
 #import "render.h"
 #import "terminal.h"
+#import "input.h"
 
 // Forward declarations
 @class TerminalWindowDelegate;
+@class TerminalTextView;
 
 typedef struct {
     NSWindow *ns_window;
     MTKView *metal_view;
     TerminalWindowDelegate *delegate;
     CATextLayer *text_layer;
+    TerminalTextView *text_view;
     Terminal *terminal;
     int should_close;
     InputCallback input_callback;
@@ -26,6 +29,36 @@ typedef struct {
 @end
 
 @implementation TerminalTextView
+
+- (BOOL)acceptsFirstResponder {
+    return YES;
+}
+
+- (void)keyDown:(NSEvent *)event {
+    if (self.window_data && self.window_data->input_callback) {
+        unsigned short key_code = event.keyCode;
+        
+        // Handle the key code for special keys
+        self.window_data->input_callback(
+            self.window_data->input_context,
+            (int)key_code,
+            0  // ACTION_PRESSED
+        );
+    }
+    // Don't call super to prevent beep on unhandled keys
+}
+
+- (void)keyUp:(NSEvent *)event {
+    if (self.window_data && self.window_data->input_callback) {
+        unsigned short key_code = event.keyCode;
+        self.window_data->input_callback(
+            self.window_data->input_context,
+            (int)key_code,
+            1  // ACTION_RELEASED
+        );
+    }
+}
+
 - (void)drawRect:(NSRect)dirtyRect {
     if (!self.window_data || !self.window_data->terminal) {
         [[NSColor blackColor] setFill];
@@ -152,6 +185,15 @@ typedef struct {
 @end
 
 @implementation TerminalView
+
+- (BOOL)acceptsFirstResponder {
+    return YES;
+}
+
+- (BOOL)canBecomeKeyView {
+    return YES;
+}
+
 - (void)keyDown:(NSEvent *)event {
     if (self.window_data && self.window_data->input_callback) {
         unsigned short key_code = event.keyCode;
@@ -222,7 +264,10 @@ Window* window_create(const char* title, int width, int height) {
         }
         
         text_view.window_data = window_data;
+        text_view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
         [ns_window.contentView addSubview:text_view];
+        
+        window_data->text_view = text_view;
         
         // Also create an invisible MTKView for Metal rendering if needed in the future
         MTKView *metal_view = [[TerminalView alloc] initWithFrame:NSMakeRect(0, 0, width, height)];
@@ -249,6 +294,7 @@ Window* window_create(const char* title, int width, int height) {
         metal_view.delegate = [[MTKViewDelegate alloc] init];
         ((MTKViewDelegate *)metal_view.delegate).window_data = window_data;
         metal_view.hidden = YES;  // Hide Metal view since we're using text view for now
+        metal_view.paused = YES;  // Don't run the Metal render loop
         [ns_window.contentView addSubview:metal_view positioned:NSWindowBelow relativeTo:text_view];
         
         window_data->ns_window = ns_window;
@@ -285,6 +331,11 @@ void window_show(Window* window) {
         WindowData *window_data = (WindowData *)window;
         if (window_data->ns_window) {
             [window_data->ns_window makeKeyAndOrderFront:nil];
+            
+            // Make the text view first responder so it can receive keyboard input
+            if (window_data->text_view) {
+                [window_data->ns_window makeFirstResponder:window_data->text_view];
+            }
         }
     }
 }
@@ -348,6 +399,11 @@ void window_set_terminal(Window* window, Terminal* terminal) {
     WindowData *window_data = (WindowData *)window;
     window_data->terminal = terminal;
     
+    // Trigger initial redraw
+    if (window_data->text_view) {
+        [window_data->text_view setNeedsDisplay:YES];
+    }
+    
     // Create text layer if needed
     if (!window_data->text_layer && window_data->metal_view) {
         CATextLayer *text_layer = [CATextLayer layer];
@@ -360,5 +416,19 @@ void window_set_terminal(Window* window, Terminal* terminal) {
         
         [window_data->metal_view.layer addSublayer:text_layer];
         window_data->text_layer = text_layer;
+    }
+}
+
+void window_refresh(Window* window) {
+    if (!window) return;
+    
+    @autoreleasepool {
+        WindowData *window_data = (WindowData *)window;
+        
+        // Redraw the text view
+        if (window_data->text_view) {
+            [window_data->text_view setNeedsDisplay:YES];
+            [window_data->text_view displayIfNeeded];
+        }
     }
 }

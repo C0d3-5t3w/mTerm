@@ -31,4 +31,7 @@ void window_set_renderer(Window* window, Renderer* renderer);
 // Terminal integration  
 void window_set_terminal(Window* window, Terminal* terminal);
 
+// Display update
+void window_refresh(Window* window);
+
 #endif // WINDOW_H
