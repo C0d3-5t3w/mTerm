@@ -132,6 +132,11 @@ int main() {
             return 1;
         }
         
+        // Add test welcome message to terminal
+        const char *welcome = "Welcome to mTerm - macOS Terminal Emulator\n";
+        terminal_write(g_terminal, welcome, strlen(welcome));
+        terminal_write(g_terminal, "\n", 1);
+        
         // Set terminal on renderer so it can display it
         renderer_set_terminal(g_renderer, g_terminal);
         

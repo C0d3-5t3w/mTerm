@@ -20,10 +20,99 @@ typedef struct {
     void *input_context;
 } WindowData;
 
+@interface TerminalTextView : NSView
+@property (nonatomic, assign) WindowData *window_data;
+@property (nonatomic, strong) NSFont *terminal_font;
+@end
+
+@implementation TerminalTextView
+- (void)drawRect:(NSRect)dirtyRect {
+    if (!self.window_data || !self.window_data->terminal) {
+        [[NSColor blackColor] setFill];
+        NSRectFill(self.bounds);
+        return;
+    }
+    
+    Terminal *terminal = self.window_data->terminal;
+    const char *text = terminal_get_text(terminal);
+    if (!text) {
+        [[NSColor blackColor] setFill];
+        NSRectFill(self.bounds);
+        return;
+    }
+    
+    // Setup font once
+    if (!self.terminal_font) {
+        self.terminal_font = [NSFont fontWithName:@"Menlo" size:12.0];
+        if (!self.terminal_font) {
+            self.terminal_font = [NSFont fontWithName:@"Monaco" size:12.0];
+        }
+        if (!self.terminal_font) {
+            self.terminal_font = [NSFont fontWithName:@"Courier New" size:12.0];
+        }
+        if (!self.terminal_font) {
+            self.terminal_font = [NSFont systemFontOfSize:12.0];
+        }
+    }
+    
+    // Draw black background
+    [[NSColor blackColor] setFill];
+    NSRectFill(self.bounds);
+    
+    // Create text attributes for terminal text
+    NSDictionary *attrs = @{
+        NSFontAttributeName: self.terminal_font,
+        NSForegroundColorAttributeName: [NSColor colorWithRed:0.73 green:0.73 blue:0.73 alpha:1.0]
+    };
+    
+    NSRect bounds = self.bounds;
+    
+    // Get terminal dimensions
+    int cursor_x = terminal_get_cursor_x(terminal);
+    int cursor_y = terminal_get_cursor_y(terminal);
+    
+    // Draw text in a grid pattern
+    CGFloat x_offset = 6.0;
+    CGFloat y_offset = bounds.size.height - 16.0;  // Start from top
+    CGFloat char_width = 7.2;  // Approximate monospace char width for Menlo 12pt
+    CGFloat line_height = 14.0;
+    
+    // Draw each row of the terminal buffer
+    const char *buffer = text;
+    for (int row = 0; row < 50; row++) {
+        // Extract line from buffer (120 chars per row)
+        char line_buffer[121];
+        int start_pos = row * 120;
+        strncpy(line_buffer, buffer + start_pos, 120);
+        line_buffer[120] = '\0';
+        
+        // Create NSString and draw
+        NSString *line = [NSString stringWithUTF8String:line_buffer];
+        if (line) {
+            // Draw the line of text
+            [line drawAtPoint:CGPointMake(x_offset, y_offset) withAttributes:attrs];
+        }
+        
+        // Draw cursor if on this row
+        if (row == cursor_y && cursor_x < 120) {
+            CGRect cursor_rect = CGRectMake(
+                x_offset + (cursor_x * char_width),
+                y_offset,
+                char_width,
+                line_height
+            );
+            [[NSColor colorWithRed:0.73 green:0.73 blue:0.73 alpha:0.7] setStroke];
+            [NSBezierPath strokeRect:cursor_rect];
+        }
+        
+        y_offset -= line_height;
+    }
+}
+@end
+
 @interface MTKViewDelegate : NSObject<MTKViewDelegate>
 @property (nonatomic, assign) WindowData *window_data;
 @property (nonatomic, assign) Renderer *renderer;
-@property (nonatomic, strong) NSFont *terminal_font;
 @end
 
 @implementation MTKViewDelegate
@@ -32,66 +121,10 @@ typedef struct {
 
 - (void)drawInMTKView:(MTKView *)view {
     // This is called automatically by MTKView on each frame
-    // First render Metal background
+    // Just clear to black - terminal content is drawn by TerminalTextView
     if (self.renderer) {
         renderer_clear(self.renderer, 0.0f, 0.0f, 0.0f, 1.0f);
-        renderer_render(self.renderer);
     }
-    
-    // Then draw terminal text using Core Graphics
-    [self drawTerminalText:view];
-}
-
-- (void)drawTerminalText:(MTKView *)view {
-    if (!self.window_data || !self.window_data->terminal) return;
-    
-    Terminal *terminal = self.window_data->terminal;
-    const char *text = terminal_get_text(terminal);
-    if (!text) return;
-    
-    NSString *ns_text = [NSString stringWithUTF8String:text];
-    if (!ns_text) return;
-    
-    // Setup font
-    if (!self.terminal_font) {
-        self.terminal_font = [NSFont fontWithName:@"Monaco" size:13.0];
-        if (!self.terminal_font) {
-            self.terminal_font = [NSFont fontWithName:@"Courier New" size:13.0];
-        }
-        if (!self.terminal_font) {
-            self.terminal_font = [NSFont fontWithName:@"Courier" size:13.0];
-        }
-        if (!self.terminal_font) {
-            self.terminal_font = [NSFont systemFontOfSize:13.0];
-        }
-    }
-    
-    // Create text attributes
-    NSDictionary *attrs = @{
-        NSFontAttributeName: self.terminal_font,
-        NSForegroundColorAttributeName: [NSColor colorWithRed:0.73 green:0.73 blue:0.73 alpha:1.0]
-    };
-    
-    // Draw terminal content
-    NSArray *lines = [ns_text componentsSeparatedByString:@"\n"];
-    CGFloat y_offset = 10;
-    CGFloat x_offset = 10;
-    
-    for (NSString *line in lines) {
-        [line drawAtPoint:CGPointMake(x_offset, y_offset) withAttributes:attrs];
-        y_offset += 17;
-    }
-    
-    // Draw cursor
-    int cursor_x = terminal_get_cursor_x(terminal);
-    int cursor_y = terminal_get_cursor_y(terminal);
-    CGFloat cursor_x_pos = x_offset + (cursor_x * 8.4);
-    CGFloat cursor_y_pos = 10 + (cursor_y * 17);
-    
-    [[[NSColor colorWithRed:0.73 green:0.73 blue:0.73 alpha:0.5] colorWithAlphaComponent:0.5] setStroke];
-    NSRect cursor_rect = NSMakeRect(cursor_x_pos, cursor_y_pos, 8.4, 17);
-    NSBezierPath *cursor_path = [NSBezierPath bezierPathWithRect:cursor_rect];
-    [cursor_path stroke];
 }
 @end
 
@@ -180,8 +213,21 @@ Window* window_create(const char* title, int width, int height) {
         ns_window.delegate = delegate;
         window_data->delegate = delegate;
         
+        // Create TerminalTextView for drawing terminal content
+        TerminalTextView *text_view = [[TerminalTextView alloc] initWithFrame:NSMakeRect(0, 0, width, height)];
+        if (!text_view) {
+            [ns_window release];
+            free(window_data);
+            return NULL;
+        }
+        
+        text_view.window_data = window_data;
+        [ns_window.contentView addSubview:text_view];
+        
+        // Also create an invisible MTKView for Metal rendering if needed in the future
         MTKView *metal_view = [[TerminalView alloc] initWithFrame:NSMakeRect(0, 0, width, height)];
         if (!metal_view) {
+            [text_view release];
             [ns_window release];
             free(window_data);
             return NULL;
@@ -192,6 +238,7 @@ Window* window_create(const char* title, int width, int height) {
         id<MTLDevice> device = MTLCreateSystemDefaultDevice();
         if (!device) {
             [metal_view release];
+            [text_view release];
             [ns_window release];
             free(window_data);
             return NULL;
@@ -201,8 +248,8 @@ Window* window_create(const char* title, int width, int height) {
         metal_view.drawableSize = CGSizeMake(width, height);
         metal_view.delegate = [[MTKViewDelegate alloc] init];
         ((MTKViewDelegate *)metal_view.delegate).window_data = window_data;
-        
-        [ns_window.contentView addSubview:metal_view];
+        metal_view.hidden = YES;  // Hide Metal view since we're using text view for now
+        [ns_window.contentView addSubview:metal_view positioned:NSWindowBelow relativeTo:text_view];
         
         window_data->ns_window = ns_window;
         window_data->metal_view = metal_view;
