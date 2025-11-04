@@ -10,4 +10,9 @@
 #import <QuartzCore/CAMetalLayer.h>
 #import <simd/simd.h>
 
+#import "inc/window.h"
+#import "inc/render.h"
+#import "inc/shell.h"
+#import "inc/input.h"
+
 int main() {}
