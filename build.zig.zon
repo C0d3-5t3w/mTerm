@@ -1,0 +1,17 @@
+.{
+    .name = .mTerm,
+
+    .version = "0.0.0",
+
+    .fingerprint = 0x83f9d34eeeaa10d3,
+
+    .minimum_zig_version = "0.15.1",
+
+    .dependencies = .{},
+
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
