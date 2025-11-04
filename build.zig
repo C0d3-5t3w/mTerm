@@ -42,6 +42,76 @@ pub fn build(b: *std.Build) void {
         .flags = cflags,
     });
 
+    exe.addCSourceFile(.{
+        .file = b.path("src/inc/terminal.m"),
+        .flags = cflags,
+    });
+
+    exe.addCSourceFile(.{
+        .file = b.path("src/inc/clipboard.m"),
+        .flags = cflags,
+    });
+
+    exe.addCSourceFile(.{
+        .file = b.path("src/inc/scrollback.m"),
+        .flags = cflags,
+    });
+
+    exe.addCSourceFile(.{
+        .file = b.path("src/inc/themes.m"),
+        .flags = cflags,
+    });
+
+    exe.addCSourceFile(.{
+        .file = b.path("src/inc/tabs.m"),
+        .flags = cflags,
+    });
+
+    exe.addCSourceFile(.{
+        .file = b.path("src/inc/search.m"),
+        .flags = cflags,
+    });
+
+    exe.addCSourceFile(.{
+        .file = b.path("src/inc/sessions.m"),
+        .flags = cflags,
+    });
+
+    exe.addCSourceFile(.{
+        .file = b.path("src/inc/panes.m"),
+        .flags = cflags,
+    });
+
+    exe.addCSourceFile(.{
+        .file = b.path("src/inc/text_renderer.m"),
+        .flags = cflags,
+    });
+
+    exe.addCSourceFile(.{
+        .file = b.path("src/inc/url_detector.m"),
+        .flags = cflags,
+    });
+
+    exe.addCSourceFile(.{
+        .file = b.path("src/inc/image_renderer.m"),
+        .flags = cflags,
+    });
+
+    exe.addCSourceFile(.{
+        .file = b.path("src/inc/profiler.m"),
+        .flags = cflags,
+    });
+
+    exe.addCSourceFile(.{
+        .file = b.path("src/inc/shell_integration.m"),
+        .flags = cflags,
+    });
+
+    exe.addCSourceFile(.{
+        .file = b.path("src/inc/scripting.m"),
+        .flags = cflags,
+    });
+
     exe.linkLibC();
 
     exe.linkFramework("Cocoa");
@@ -49,6 +119,7 @@ pub fn build(b: *std.Build) void {
     exe.linkFramework("MetalKit");
     exe.linkFramework("QuartzCore");
     exe.linkFramework("CoreGraphics");
+    exe.linkFramework("CoreText");
     exe.linkFramework("Foundation");
     exe.linkFramework("AppKit");
 

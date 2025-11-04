@@ -15,6 +15,7 @@
 #import "inc/render.h"
 #import "inc/shell.h"
 #import "inc/input.h"
+#import "inc/terminal.h"
 
 #define WINDOW_WIDTH 1200
 #define WINDOW_HEIGHT 800
@@ -24,6 +25,7 @@ static Window *g_window = NULL;
 static Renderer *g_renderer = NULL;
 static Shell *g_shell = NULL;
 static InputHandler *g_input = NULL;
+static Terminal *g_terminal = NULL;
 
 // Input callback for keyboard events
 void on_key_input(void* context, int key, int action) {
@@ -41,10 +43,55 @@ void on_key_input(void* context, int key, int action) {
     }
 }
 
+// Application delegate to handle rendering and shell updates
+@interface AppDelegate : NSObject <NSApplicationDelegate>
+@end
+
+@implementation AppDelegate
+- (void)applicationDidFinishLaunching:(NSNotification *)notification {
+    // Start the render/update loop
+    NSTimer *timer = [NSTimer scheduledTimerWithTimeInterval:(1.0 / 60.0)
+                                                      target:self
+                                                    selector:@selector(update:)
+                                                    userInfo:nil
+                                                     repeats:YES];
+}
+
+- (void)update:(NSTimer *)timer {
+    char buffer[4096];
+    int bytes_read;
+    
+    @autoreleasepool {
+        // Read shell output
+        if (g_shell && shell_is_running(g_shell)) {
+            bytes_read = shell_read_output(g_shell, buffer, sizeof(buffer) - 1);
+            if (bytes_read > 0) {
+                buffer[bytes_read] = '\0';
+                // Write to terminal buffer instead of stdout
+                if (g_terminal) {
+                    terminal_write(g_terminal, buffer, bytes_read);
+                }
+            }
+        }
+        
+        // MTKView will handle rendering through its delegate
+    }
+}
+
+- (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)app {
+    return YES;
+}
+@end
+
 int main() {
     @autoreleasepool {
         // Create application
         NSApplication *app = [NSApplication sharedApplication];
+        
+        // Create and set the app delegate
+        AppDelegate *delegate = [[AppDelegate alloc] init];
+        [app setDelegate:delegate];
+        
         [app setActivationPolicy:NSApplicationActivationPolicyRegular];
         
         // Create window
@@ -72,6 +119,21 @@ int main() {
             window_destroy(g_window);
             return 1;
         }
+        
+        // Set renderer on the window so MTKViewDelegate can use it
+        window_set_renderer(g_window, g_renderer);
+        
+        // Create terminal buffer
+        g_terminal = terminal_create(120, 50);
+        if (!g_terminal) {
+            fprintf(stderr, "Failed to create terminal\n");
+            renderer_destroy(g_renderer);
+            window_destroy(g_window);
+            return 1;
+        }
+        
+        // Set terminal on renderer so it can display it
+        renderer_set_terminal(g_renderer, g_terminal);
         
         // Create shell
         g_shell = shell_create();
@@ -121,43 +183,10 @@ int main() {
         [appMenu addItem:quitMenuItem];
         [appMenuItem setSubmenu:appMenu];
         
-        // Main event loop
-        char buffer[4096];
-        int bytes_read;
-        
-        while (!window_should_close(g_window)) {
-            @autoreleasepool {
-                // Process system events
-                NSEvent *event = [app nextEventMatchingMask:NSEventMaskAny
-                                                   untilDate:[NSDate distantPast]
-                                                      inMode:NSDefaultRunLoopMode
-                                                     dequeue:YES];
-                if (event) {
-                    [app sendEvent:event];
-                }
-                
-                // Read shell output
-                if (shell_is_running(g_shell)) {
-                    bytes_read = shell_read_output(g_shell, buffer, sizeof(buffer) - 1);
-                    if (bytes_read > 0) {
-                        buffer[bytes_read] = '\0';
-                        // In a real terminal, this would update the display buffer
-                        // For now, we just display it to stdout for testing
-                        printf("%s", buffer);
-                        fflush(stdout);
-                    }
-                }
-                
-                // Render frame
-                if (g_renderer) {
-                    renderer_clear(g_renderer, 0.0f, 0.0f, 0.0f, 1.0f);
-                    renderer_render(g_renderer);
-                }
-                
-                // Small sleep to prevent 100% CPU usage
-                usleep(16666);  // ~60 FPS
-            }
-        }
+        // Use the application's built-in run loop
+        // The update timer will handle rendering
+        // Window close is handled by applicationShouldTerminateAfterLastWindowClosed:
+        [app run];
         
         // Cleanup
         if (g_input) {
@@ -166,12 +195,17 @@ int main() {
         if (g_shell) {
             shell_destroy(g_shell);
         }
+        if (g_terminal) {
+            terminal_destroy(g_terminal);
+        }
         if (g_renderer) {
             renderer_destroy(g_renderer);
         }
         if (g_window) {
             window_destroy(g_window);
         }
+        
+        [delegate release];
         
         return 0;
     }

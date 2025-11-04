@@ -150,3 +150,18 @@ void input_clear_buffer(InputHandler* input) {
     memset(input_data->text_buffer, 0, INPUT_BUFFER_SIZE);
     input_data->buffer_pos = 0;
 }
+
+void input_handle_character(InputHandler* input, const char *characters) {
+    if (!input || !characters) return;
+    
+    InputHandlerData *input_data = (InputHandlerData *)input;
+    
+    // Add character to buffer (limited to printable ASCII)
+    for (int i = 0; characters[i] && input_data->buffer_pos < INPUT_BUFFER_SIZE - 1; i++) {
+        char c = characters[i];
+        if (c >= 32 && c < 127) {  // Printable ASCII range
+            input_data->text_buffer[input_data->buffer_pos++] = c;
+            input_data->text_buffer[input_data->buffer_pos] = '\0';
+        }
+    }
+}

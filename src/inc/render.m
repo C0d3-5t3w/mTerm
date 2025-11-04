@@ -1,12 +1,23 @@
 #import <Metal/Metal.h>
 #import <MetalKit/MetalKit.h>
+#import <CoreText/CoreText.h>
+#import <AppKit/AppKit.h>
 #import "render.h"
+#import "terminal.h"
+
+#define FONT_SIZE 14.0f
+#define CHAR_WIDTH 8.4f
+#define CHAR_HEIGHT 16.8f
 
 typedef struct {
     id<MTLDevice> device;
     id<MTLCommandQueue> command_queue;
     MTKView *metal_view;
     id<MTLRenderPipelineState> pipeline_state;
+    Terminal *terminal;
+    NSFont *font;
+    CGColorRef fg_color;
+    CGColorRef bg_color;
 } RendererData;
 
 Renderer* renderer_create(MTKView* metal_view) {
@@ -33,6 +44,22 @@ Renderer* renderer_create(MTKView* metal_view) {
             return NULL;
         }
         
+        // Load monospace font for terminal
+        renderer_data->font = [NSFont fontWithName:@"Monaco" size:FONT_SIZE];
+        if (!renderer_data->font) {
+            renderer_data->font = [NSFont fontWithName:@"Courier New" size:FONT_SIZE];
+        }
+        if (!renderer_data->font) {
+            renderer_data->font = [NSFont fontWithName:@"Courier" size:FONT_SIZE];
+        }
+        if (!renderer_data->font) {
+            renderer_data->font = [NSFont systemFontOfSize:FONT_SIZE];
+        }
+        
+        // Default xterm colors
+        renderer_data->fg_color = CGColorCreateGenericRGB(0.73f, 0.73f, 0.73f, 1.0f); // Light gray
+        renderer_data->bg_color = CGColorCreateGenericRGB(0.0f, 0.0f, 0.0f, 1.0f);     // Black
+        
         renderer_data->device = device;
         renderer_data->command_queue = command_queue;
         renderer_data->metal_view = metal_view;
@@ -52,6 +79,15 @@ void renderer_destroy(Renderer* renderer) {
         }
         if (renderer_data->device) {
             [renderer_data->device release];
+        }
+        if (renderer_data->font) {
+            [renderer_data->font release];
+        }
+        if (renderer_data->fg_color) {
+            CGColorRelease(renderer_data->fg_color);
+        }
+        if (renderer_data->bg_color) {
+            CGColorRelease(renderer_data->bg_color);
         }
         
         free(renderer_data);
@@ -94,15 +130,46 @@ void renderer_render(Renderer* renderer) {
             [command_buffer presentDrawable:drawable];
             [command_buffer commit];
         }
+        
+        // Draw terminal text
+        if (renderer_data->terminal && metal_view.bounds.size.width > 0) {
+            renderer_draw_terminal_text(renderer);
+        }
+    }
+}
+
+void renderer_draw_terminal_text(Renderer* renderer) {
+    if (!renderer) return;
+    
+    @autoreleasepool {
+        RendererData *renderer_data = (RendererData *)renderer;
+        Terminal *terminal = renderer_data->terminal;
+        
+        if (!terminal) return;
+        
+        const char *text = terminal_get_text(terminal);
+        if (!text) return;
+        
+        NSString *ns_text = [NSString stringWithUTF8String:text];
+        if (!ns_text) return;
+        
+        // Use simple text rendering with Terminal view
+        // Terminal content will be rendered in the CATextLayer setup
+        // This is called to update the display when terminal content changes
     }
 }
 
 void renderer_draw_text(Renderer* renderer, const char* text, int x, int y, float r, float g, float b) {
     if (!renderer || !text) return;
     
-    // Text rendering would typically use Core Text or other macOS APIs
-    // For now, this is a placeholder that can be extended
-    // In a real terminal, text would be rendered using bitmap fonts
+    // Text rendering placeholder
+    // In a full implementation, this would use bitmap fonts or texture rendering
+}
+
+void renderer_set_terminal(Renderer* renderer, Terminal* terminal) {
+    if (!renderer) return;
+    RendererData *renderer_data = (RendererData *)renderer;
+    renderer_data->terminal = terminal;
 }
 
 void renderer_clear(Renderer* renderer, float r, float g, float b, float a) {

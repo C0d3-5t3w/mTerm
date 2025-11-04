@@ -121,9 +121,22 @@ int shell_init_pty(Shell* shell) {
             close(shell_data->slave_fd);
         }
         
-        // Execute shell
-        const char *shell_path = "/bin/zsh";
-        char *argv[] = { "zsh", NULL };
+        // Get user's preferred shell from SHELL environment variable
+        const char *shell_path = getenv("SHELL");
+        if (!shell_path) {
+            shell_path = "/bin/sh";  // Fallback to /bin/sh
+        }
+        
+        // Extract shell name from path (e.g., /bin/zsh -> zsh)
+        const char *shell_name = strrchr(shell_path, '/');
+        if (!shell_name) {
+            shell_name = shell_path;
+        } else {
+            shell_name++;  // Move past the '/'
+        }
+        
+        // Execute shell with login flag
+        char *argv[] = { (char *)shell_name, NULL };
         execv(shell_path, argv);
         
         // If execv fails

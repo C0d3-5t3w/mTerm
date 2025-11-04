@@ -7,7 +7,7 @@ typedef struct InputHandler InputHandler;
 InputHandler* input_create(void);
 void input_destroy(InputHandler* input);
 
-// Key code definitions
+// Key code definitions (macOS key codes)
 typedef enum {
     KEY_RETURN = 0x24,
     KEY_TAB = 0x30,
@@ -19,6 +19,10 @@ typedef enum {
     KEY_DOWN = 0x7D,
     KEY_LEFT = 0x7B,
     KEY_RIGHT = 0x7C,
+    KEY_HOME = 0x73,
+    KEY_END = 0x77,
+    KEY_PAGE_UP = 0x74,
+    KEY_PAGE_DOWN = 0x79,
 } KeyCode;
 
 typedef enum {
@@ -31,5 +35,6 @@ void input_handle_key(InputHandler* input, int key_code, int action);
 int input_get_last_key(InputHandler* input);
 const char* input_get_text_input(InputHandler* input);
 void input_clear_buffer(InputHandler* input);
+void input_handle_character(InputHandler* input, const char *characters);
 
 #endif // INPUT_H

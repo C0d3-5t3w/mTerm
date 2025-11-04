@@ -7,6 +7,7 @@
 // Forward declarations
 typedef struct Window Window;
 typedef struct Renderer Renderer;
+typedef struct Terminal Terminal;
 
 // Window creation and management
 Window* window_create(const char* title, int width, int height);
@@ -23,5 +24,11 @@ MTKView* window_get_metal_view(Window* window);
 // Input callbacks
 typedef void (*InputCallback)(void* context, int key, int action);
 void window_set_key_callback(Window* window, InputCallback callback, void* context);
+
+// Renderer integration
+void window_set_renderer(Window* window, Renderer* renderer);
+
+// Terminal integration  
+void window_set_terminal(Window* window, Terminal* terminal);
 
 #endif // WINDOW_H
