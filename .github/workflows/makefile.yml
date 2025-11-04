@@ -1,0 +1,24 @@
+name: Makefile Build
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    # mTerm is a macOS-specific terminal emulator using Cocoa, Metal, and other macOS frameworks
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build with Make
+      run: make clean && make
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: mTerm
+        path: build/bin/mTerm
